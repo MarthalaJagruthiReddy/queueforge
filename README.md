@@ -1,39 +1,99 @@
 # QueueForge
 
-QueueForge is a small, explainable job platform: clients submit idempotent jobs, an independent Node.js worker claims them, transient failures are retried, and operators can inspect status and metrics from a React dashboard.
+QueueForge is a durable asynchronous job-processing platform. API clients submit idempotent jobs, an independent Node.js worker claims and executes them, transient failures are retried, and operators can inspect job state from a React dashboard.
 
-## Engineering signals
+## Architecture
 
-- REST API with Fastify, TypeScript types, and Zod validation.
-- PostgreSQL persistence with transactional row locking and a recovery poll.
-- Redis list used as the low-latency dispatch path; PostgreSQL remains the source of truth.
-- Idempotency keys prevent duplicate submissions when clients retry requests.
-- Node.js worker claims queued jobs with PostgreSQL row-lock semantics (`SKIP LOCKED`).
-- Retry budget, durable failure state, cancellation, health checks, and Prometheus metrics.
-- React/TypeScript dashboard that polls the API and exposes the operational state.
+```mermaid
+flowchart TD
+    Client["React dashboard or API client"] --> API["Fastify API"]
+    API --> DB["PostgreSQL source of truth"]
+    API --> Redis["Redis dispatch queue"]
+    Worker["Node.js worker"] --> Redis
+    Worker --> DB
+```
 
-## Run
+PostgreSQL owns the durable job state. Redis provides a low-latency dispatch path, while the worker uses PostgreSQL row-locking semantics to avoid duplicate claims. The API exposes OpenAPI documentation and Prometheus metrics.
+
+## Features
+
+- Idempotent job submission through a unique `Idempotency-Key`.
+- Transactional job creation and worker claims using PostgreSQL.
+- Retry budgets, durable failure state, cancellation, and recovery polling.
+- Separate API and worker processes for independent scaling.
+- React/TypeScript dashboard for job status and operational statistics.
+- Health checks, structured logging, Swagger UI, and Prometheus metrics.
+
+## Technology
+
+- Frontend: React, TypeScript, Vite
+- API and worker: Node.js, TypeScript, Fastify, Zod
+- Data and messaging: PostgreSQL, Redis
+- Operations: Docker Compose, GitHub Actions, Prometheus metrics
+
+## Getting started
+
+### Start the services
 
 ```bash
 npm install
 docker compose up --build
 ```
 
-Open `http://localhost:8001/docs` for the API. The frontend can be run with:
+The API is available at `http://localhost:8001`. Swagger UI is available at `http://localhost:8001/docs`, and Prometheus metrics are exposed at `http://localhost:8001/metrics`.
+
+### Start the frontend
 
 ```bash
 npm run dev
 ```
 
-Set `VITE_API_BASE=http://localhost:8001` if the API is not on the default origin. The Node.js service lives in `backend-node/`.
+If the API is running on another origin, set `VITE_API_BASE`, for example:
 
-## Interview discussion
+```bash
+VITE_API_BASE=http://localhost:8001 npm run dev
+```
 
-1. Why is the idempotency key stored with a unique database constraint instead of only checked in application memory?
-2. What changes are required to make worker leasing safe if a worker crashes after claiming a job?
-3. Why should retries use exponential backoff and a dead-letter policy in a production system?
-4. Which metrics distinguish a slow downstream dependency from a saturated worker pool?
+### Run the Node service locally
 
-## Honest benchmark plan
+```bash
+npm ci --prefix backend-node
+npm run build --prefix backend-node
+npm test --prefix backend-node
+```
 
-Run 100 jobs with 1, 2, and 4 workers, record throughput, p95 completion latency, duplicate submission rate, and retry recovery rate. Put the measured values in the eventual resume bullet; do not use fabricated numbers.
+## API surface
+
+| Method | Endpoint | Purpose |
+| --- | --- | --- |
+| `POST` | `/api/v1/jobs` | Submit an idempotent job |
+| `GET` | `/api/v1/jobs` | List jobs, optionally filtered by status |
+| `GET` | `/api/v1/jobs/:jobId` | Read one job |
+| `POST` | `/api/v1/jobs/:jobId/cancel` | Cancel a queued or running job |
+| `GET` | `/api/v1/stats` | Read aggregate job counts |
+| `GET` | `/healthz` | Check database connectivity and service health |
+| `GET` | `/metrics` | Export Prometheus metrics |
+
+## Validation
+
+```bash
+npm run build
+npm run typecheck --workspace=frontend
+npm test --prefix backend-node
+```
+
+The repository also includes a GitHub Actions workflow that runs the frontend build and backend tests.
+
+## Repository layout
+
+```text
+backend-node/       Fastify API, worker, database, queue, and tests
+frontend/            React dashboard
+docker-compose.yml  PostgreSQL, Redis, API, and worker services
+```
+
+## Next steps
+
+- Add worker leases and heartbeats for crash recovery during long-running jobs.
+- Add a dead-letter queue and replay controls to the dashboard.
+- Add load-test scenarios for throughput, latency, retries, and duplicate submissions.
