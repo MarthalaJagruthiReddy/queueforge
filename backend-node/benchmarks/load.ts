@@ -1,6 +1,6 @@
 import { performance } from "node:perf_hooks";
 
-const baseUrl = process.env.BASE_URL ?? "http://127.0.0.1:3000";
+const baseUrl = process.env.BASE_URL ?? "http://127.0.0.1:8000";
 const requestCount = Number(process.env.REQUESTS ?? 1_000);
 const concurrency = Number(process.env.CONCURRENCY ?? 25);
 
