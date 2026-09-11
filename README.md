@@ -82,7 +82,14 @@ npm run typecheck --workspace=frontend
 npm test --prefix backend-node
 ```
 
-The repository also includes a GitHub Actions workflow that runs the frontend build and backend tests.
+The repository also includes a GitHub Actions workflow that runs the frontend build, strict typecheck, backend tests, and a PostgreSQL/Redis integration test. To run the integration test locally, start the Compose services and run:
+
+```bash
+INTEGRATION=1 \
+DATABASE_URL=postgres://queueforge:queueforge@localhost:5432/queueforge \
+REDIS_URL=redis://localhost:6379 \
+npm run test:integration --prefix backend-node
+```
 
 ## Repository layout
 
