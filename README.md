@@ -91,6 +91,19 @@ REDIS_URL=redis://localhost:6379 \
 npm run test:integration --prefix backend-node
 ```
 
+## Reproducible load measurement
+
+The [GitHub Actions benchmark run](https://github.com/MarthalaJagruthiReddy/queueforge/actions/runs/34621152784) submitted 1,000 jobs with 25 concurrent clients against PostgreSQL 16 and Redis 7 using one API process and one worker:
+
+| Metric | Result |
+| --- | ---: |
+| Successful submissions | 1,000 / 1,000 |
+| Submission throughput | 1,014.42 jobs/sec |
+| Submission latency p50 / p95 / p99 | 17.58 / 58.29 / 152.12 ms |
+| Worker drain | 1,000 jobs in 8.339 sec |
+
+These are measurements from that CI runner and workload, not production capacity guarantees. Re-run the benchmark workflow before comparing code changes.
+
 ## Repository layout
 
 ```text
@@ -103,4 +116,4 @@ docker-compose.yml  PostgreSQL, Redis, API, and worker services
 
 - Add worker leases and heartbeats for crash recovery during long-running jobs.
 - Add a dead-letter queue and replay controls to the dashboard.
-- Add load-test scenarios for throughput, latency, retries, and duplicate submissions.
+- Add multi-worker benchmark scenarios for retries, duplicate submissions, and crash recovery.
