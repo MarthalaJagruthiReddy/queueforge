@@ -50,7 +50,7 @@ jobs:
           node dist/src/server.js > /tmp/queueforge-server.log 2>&1 &
           node dist/src/worker.js > /tmp/queueforge-worker.log 2>&1 &
           for attempt in $(seq 1 30); do
-            curl --fail --silent http://127.0.0.1:3000/healthz && exit 0
+            curl --fail --silent http://127.0.0.1:8000/healthz && exit 0
             sleep 1
           done
           cat /tmp/queueforge-server.log
