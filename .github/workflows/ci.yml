@@ -32,3 +32,46 @@ jobs:
           cache-dependency-path: package-lock.json
       - run: npm ci
       - run: npm run build
+      - run: npm run typecheck
+
+  integration:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: queueforge
+          POSTGRES_PASSWORD: queueforge
+          POSTGRES_DB: queueforge
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U queueforge -d queueforge"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    defaults:
+      run:
+        working-directory: backend-node
+    env:
+      DATABASE_URL: postgres://queueforge:queueforge@localhost:5432/queueforge
+      REDIS_URL: redis://localhost:6379
+      INTEGRATION: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend-node/package-lock.json
+      - run: npm ci
+      - run: npm run test:integration
