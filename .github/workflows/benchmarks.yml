@@ -1,0 +1,64 @@
+name: queueforge-benchmarks
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  load-test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: queueforge
+          POSTGRES_PASSWORD: queueforge
+          POSTGRES_DB: queueforge
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U queueforge -d queueforge"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    defaults:
+      run:
+        working-directory: backend-node
+    env:
+      DATABASE_URL: postgres://queueforge:queueforge@localhost:5432/queueforge
+      REDIS_URL: redis://localhost:6379
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend-node/package-lock.json
+      - run: npm ci
+      - run: npm run build
+      - name: Start API and worker
+        run: |
+          node dist/src/server.js > /tmp/queueforge-server.log 2>&1 &
+          node dist/src/worker.js > /tmp/queueforge-worker.log 2>&1 &
+          for attempt in $(seq 1 30); do
+            curl --fail --silent http://127.0.0.1:3000/healthz && exit 0
+            sleep 1
+          done
+          cat /tmp/queueforge-server.log
+          cat /tmp/queueforge-worker.log
+          exit 1
+      - name: Run load test
+        run: node --import tsx benchmarks/load.ts | tee benchmark-results.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: queueforge-load-results
+          path: backend-node/benchmark-results.json
